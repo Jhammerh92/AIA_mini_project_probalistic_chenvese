@@ -1,0 +1,7 @@
+Chan-vese mini projekt
+
+- kmeans clustering af RGB i 3D, både enkelt pixelværdi og måske patches 3x3
+- bruge tekstur-context i billedet i sort-hvid 
+- brug kode til at lave ring -> snek
+
+find isbjørn på is! go!
