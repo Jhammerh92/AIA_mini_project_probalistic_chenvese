@@ -34,6 +34,41 @@ def clustering(image_path, num_clusters):
     return model, label, Z
 
 
+def plot_clustering_2D(image_path, num_clusters):
+
+    model, label, Z = clustering(image_path, num_clusters)
+    center = model.cluster_centers_
+
+    Cluster_A = Z[label.ravel()==0]
+    Cluster_B = Z[label.ravel()==1]
+    # Cluster_C = Z[label.ravel()==2]
+
+    # Plot the data
+    fig, axes = plt.subplots(1,3)
+
+    # plt.figure("Red / Green")
+    axes[0].scatter(Cluster_A[:,0],Cluster_A[:,1], c = 'b')
+    axes[0].scatter(Cluster_B[:,0],Cluster_B[:,1], c = 'r')
+    axes[0].scatter(center[:,0],center[:,1],s = 80,c = 'y', marker = 's')
+    axes[0].set_xlabel("red"), axes[0].set_ylabel('Green')
+
+    # plt.figure("Red / Blue")
+    axes[1].scatter(Cluster_A[:,0],Cluster_A[:,2], c = 'b')
+    axes[1].scatter(Cluster_B[:,0],Cluster_B[:,2], c = 'r')
+    axes[1].scatter(center[:,0],center[:,2],s = 80,c = 'y', marker = 's')
+    axes[1].set_xlabel("red"), axes[1].set_ylabel("blue")
+
+    # plt.figure("Green / Blue")
+    axes[2].scatter(Cluster_A[:,1],Cluster_A[:,2], c = 'b')
+    axes[2].scatter(Cluster_B[:,1],Cluster_B[:,2], c = 'r')
+    axes[2].scatter(center[:,1],center[:,2],s = 80,c = 'y', marker = 's')
+    axes[2].set_xlabel("green"), axes[2].set_ylabel("blue")
+
+    plt.show()
+
+    return
+
+
 def plot_clustering_3D(image_path, num_clusters):
 
     model, label, Z = clustering(image_path, num_clusters)
@@ -74,5 +109,5 @@ def plot_clustering_3D(image_path, num_clusters):
     
     return
 
-
-plot_clustering_3D("probabilistic_data/12003.jpg", 2)
+plot_clustering_3D("probabilistic_data/plante_downsize.jpg", 2)
+plot_clustering_2D("probabilistic_data/plante_downsize.jpg", 2)
