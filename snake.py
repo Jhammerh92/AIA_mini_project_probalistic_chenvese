@@ -100,25 +100,46 @@ class snake:
         inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
         outside_mask =  ~inside_mask
 
-        self.n_bins = 25
-        self.hist_in = np.histogram(self.im[inside_mask], bins=self.n_bins, normed=True)
-        self.hist_out = np.histogram(self.im[outside_mask], bins=self.n_bins, normed=True)
-        self.hist = np.histogram(self.im, bins=self.n_bins, normed=True)
+        self.bins = np.arange(0, 257) - 0.5
+        self.n_bins = len(self.bins)
+        self.hist = np.histogram(self.im, bins=self.bins, normed=True)
+        self.hist_in = np.histogram(self.im[inside_mask], bins=self.bins, normed=True)
+        self.hist_out = np.histogram(self.im[outside_mask], bins=self.bins, normed=True)
+
+        # self.hist_diff = np.reshape(self.hist_out[0] - self.hist_in[0],(-1,self.n_bins))
+        self.hist_scale = self.hist_out[0] + self.hist_in[0]
+        self.p_in = self.hist_in[0] / self.hist_scale
+        self.p_out = self.hist_out[0] / self.hist_scale
+        self.p_diff = np.reshape(self.p_in - self.p_out,(-1,self.n_bins-1))
 
 
     def plot_histograms(self, with_gaussians=False):
         self.calc_area_histograms()
 
-        fig, ax = plt.subplots(1)
-        # ax.plot(self.hist_in[1][1:], self.hist_in[0])
-        # ax.plot(self.hist_out[1][1:], self.hist_out[0])
-        ax.plot(self.hist[1][1:], self.hist[0], 'k')
+        fig, ax = plt.subplots(2)
+        ax[0].bar(np.arange(256), height=self.hist_in[0], width=1.0, color='r')
+        ax[0].bar(np.arange(256), height=self.hist_out[0], width=1.0, color='b')
+        # ax[0].plot(self.hist_in[1][1:], self.p_in)
+        # ax[0].plot(self.hist_in[1][1:], self.p_out)
+        # ax[0].plot(self.hist_out[1][1:], self.p_out,color='b')
+        # ax[0].plot(self.hist_out[1][1:], self.hist_out[0],color='b')
+        # ax[0].plot(self.hist_out[1][1:], self.hist_out[0] - self.hist_in[0])
+        # ax[0].plot(self.hist_out[1][1:], self.hist[0], 'k')
+        ax[0].set_xlim([0,255])
+        # vmin_max = np.max(abs(self.hist_diff))
+        ax[1].imshow(self.p_diff, cmap="bwr", aspect='auto', vmin=-1.0, vmax=1.0)
+        ax[1].set_xlim([0,255])
+        # print(np.sum(abs(self.hist_out[0] - self.hist_in[0])))
+        # ax.plot(self.hist[1][1:], self.hist[0], 'k')
+
         gauss_plot = norm.pdf(self.gauss_x, self.means, self.std)*self.pi
         gauss_total = np.sum(gauss_plot, axis=0)
         if with_gaussians:
             ax.plot(self.gauss_x, gauss_total)
             for i in range(self.peaks):
                 ax.plot(self.gauss_x, gauss_plot[i])
+
+        
 
         
 
