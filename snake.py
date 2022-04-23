@@ -2,6 +2,7 @@ import numpy as np
 import skimage.draw
 from scipy import interpolate
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 
 class snake:
@@ -13,6 +14,9 @@ class snake:
         self.normals = np.empty((n_points, 2))
         self.im_values = np.zeros((n_points,1)) 
         self.im = im
+        self.im_raveled = self.im.ravel()
+
+
         self.Y = im.shape[0]
         self.X = im.shape[1]
         self.f_ext= np.ones((n_points,1))
@@ -91,7 +95,64 @@ class snake:
         self.m_in = np.mean(self.im[inside_mask])
         self.m_out = np.mean(self.im[outside_mask])
         #print(self.m_in,self.m_out)
-    
+
+    def calc_area_histograms(self):
+        inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
+        outside_mask =  ~inside_mask
+
+        self.n_bins = 25
+        self.hist_in = np.histogram(self.im[inside_mask], bins=self.n_bins, normed=True)
+        self.hist_out = np.histogram(self.im[outside_mask], bins=self.n_bins, normed=True)
+        self.hist = np.histogram(self.im, bins=self.n_bins, normed=True)
+
+
+    def plot_histograms(self, with_gaussians=False):
+        self.calc_area_histograms()
+
+        fig, ax = plt.subplots(1)
+        # ax.plot(self.hist_in[1][1:], self.hist_in[0])
+        # ax.plot(self.hist_out[1][1:], self.hist_out[0])
+        ax.plot(self.hist[1][1:], self.hist[0], 'k')
+        gauss_plot = norm.pdf(self.gauss_x, self.means, self.std)*self.pi
+        gauss_total = np.sum(gauss_plot, axis=0)
+        if with_gaussians:
+            ax.plot(self.gauss_x, gauss_total)
+            for i in range(self.peaks):
+                ax.plot(self.gauss_x, gauss_plot[i])
+
+        
+
+
+
+    def init_EM_gaussians(self, peaks=2, std=10):
+        self.peaks = peaks
+        self.means = np.reshape( np.linspace(255//(peaks+2), 255-255//(peaks+2),peaks), (peaks,1))
+        self.std = np.full((peaks,1), std)
+        self.gauss_x = np.arange(0, 255)
+        self.pi = np.full((peaks,1), 1/peaks)
+        # self.gaussian_funcs = [norm.(self.means[i], self.std[i])*self.pi[i] for i in range(peaks)]
+        self.im_raveled_tiled = np.tile(self.im_raveled,(self.peaks, 1))
+        self.gaussians = norm.pdf(self.im_raveled_tiled, self.means, self.std)
+
+
+
+    def EM_converge(self, iter = 10):
+        for _ in range(iter):
+
+            gsum = np.sum(self.gaussians * self.pi, axis = 0)
+
+            weights = np.divide(self.gaussians * self.pi, np.tile(gsum,(self.peaks,1) ))
+            weights_sum = np.sum(weights, axis=1)
+
+            self.means = np.reshape(np.sum(np.multiply(weights, self.im_raveled_tiled), axis=1) / weights_sum, (self.peaks, 1))
+            self.std = np.reshape(np.sum( np.multiply(weights , np.power(self.im_raveled_tiled - self.means, 2)), axis=1) / weights_sum, (self.peaks, 1))
+            self.std = np.sqrt(self.std)
+
+            self.pi = np.reshape(weights_sum / len(self.im_raveled), (self.peaks, 1))
+
+            self.gaussians = norm.pdf( self.im_raveled_tiled, self.means, self.std)
+
+
 
 
     def calc_norm_forces(self):
@@ -101,8 +162,8 @@ class snake:
 
         
     def constrain_to_im(self):
-        self.points[:,0].clip(0,self.X)
-        self.points[:,1].clip(0,self.Y)
+        self.points[:,0] = np.clip(self.points[:,0], 0, self.X)
+        self.points[:,1] = np.clip(self.points[:,1], 0, self.Y)
 
     def distribute_points(self):
         """ Distributes snake points equidistantly."""
@@ -132,7 +193,6 @@ class snake:
             else:
                 self.points = ( self.points +  self.tau * np.diag(self.f_ext.flatten()) @ self.normals ) 
 
-            self.constrain_to_im()
             
             self.distribute_points()
             if self.cycle % 1 == 0: # only do every t'th cycle to save perfermance?
@@ -140,6 +200,7 @@ class snake:
                 #self.cycle = 0
             self.cycle += 1
 
+            self.constrain_to_im()
             
         
     def converge_to_shape(self,ax=None, conv_lim_pix=0.1, plot=True, show_normals=False):
@@ -150,7 +211,7 @@ class snake:
 
         self.update_snake(False) # update all values without updating the snake
         if ax is None:
-            fig, ax = plt.subplots(2)
+            fig, ax = plt.subplots(1)
         # need better convergence criteria,  i.e. movement of points?
         # lower tau if it bounces?
         last_movement = np.full(7,np.nan)
@@ -160,9 +221,9 @@ class snake:
             last_movement = pop_push(last_movement, movement)
             mean_last_movement = np.nanmean(last_movement)
             if plot and self.cycle % 1 == 0: # only plot every t cycles?
-                ax[0].clear()
+                ax.clear()
                 # ax[1].clear()
-                self.show(ax=ax[0],show_normals=show_normals)
+                self.show(ax=ax,show_normals=show_normals)
                 print(self.cycle)
                 # ax[1].plot(np.arange(0, self.cycle), movement)
                 # ax[1].axhline( y=mean_last_movement)
