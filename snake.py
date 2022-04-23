@@ -27,6 +27,7 @@ class snake:
         self.create_smoothing_matrix(alpha=alpha,beta=beta)
 
         self.init_snake_to_image()
+        
 
         self.update_snake(False)
         
@@ -111,6 +112,8 @@ class snake:
         self.p_in = self.hist_in[0] / self.hist_scale
         self.p_out = self.hist_out[0] / self.hist_scale
         self.p_diff = np.reshape(self.p_in - self.p_out,(-1,self.n_bins-1))
+        self.p_diff = np.nan_to_num(self.p_diff, 0.0)
+        self.interp_prop = interpolate.interp1d(np.arange(0,256), self.p_diff, kind="linear")
 
 
     def plot_histograms(self, with_gaussians=False):
@@ -176,8 +179,13 @@ class snake:
 
 
 
-    def calc_norm_forces(self):
-        self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
+    def calc_norm_forces(self, method="means"):
+        # using area means
+        if method is "means":
+            self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
+        # using pixel probability
+        if method is "prob":
+            self.f_ext = self.interp_prop(self.im_values)
         #print(self.f_ext)
     
 
@@ -204,7 +212,8 @@ class snake:
         self.get_point_im_values()
         self.calc_normals()
         self.calc_area_means()
-        self.calc_norm_forces()
+        self.calc_area_histograms()
+        self.calc_norm_forces(method="prob")
         
 
         if update:
@@ -237,7 +246,8 @@ class snake:
         # lower tau if it bounces?
         last_movement = np.full(7,np.nan)
 
-        while (div := (abs(np.mean(self.im_values) - np.mean([self.m_in,self.m_out] ))/np.mean([self.m_in,self.m_out]) )*100)  > conv_lim_pix:
+        # while (div := (abs(np.mean(self.im_values) - np.mean([self.m_in,self.m_out] ))/np.mean([self.m_in,self.m_out]) )*100)  > conv_lim_pix:
+        while True:
             movement = np.mean(np.linalg.norm(self.points - self.prev_points, axis=1)**2)
             last_movement = pop_push(last_movement, movement)
             mean_last_movement = np.nanmean(last_movement)
