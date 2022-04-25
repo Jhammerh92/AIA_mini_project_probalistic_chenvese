@@ -7,7 +7,7 @@ from scipy.stats import norm
 
 class snake:
 
-    def __init__(self, n_points, im,tau = 200, alpha=0.5, beta=0.5):   
+    def __init__(self, n_points, im, tau = 200, alpha=0.5, beta=0.5):   
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
@@ -21,12 +21,13 @@ class snake:
         self.X = im.shape[1]
         self.f_ext= np.ones((n_points,1))
         self.tau = tau
+        self.tau_init = tau
         self.cycle = 0
 
         self.init_interp_function()
         self.create_smoothing_matrix(alpha=alpha,beta=beta)
 
-        self.init_snake_to_image()
+        self.init_snake_to_image(r=None)
         
 
         self.update_snake(False)
@@ -55,7 +56,30 @@ class snake:
         Y = np.arange(0,self.Y)
         self.interp_f = interpolate.interp2d(Y,X, self.im.T, kind="linear")
 
+    def init_patch_dict(self, n_dict=10, patch_size=11):
+        self.n_dict = n_dict
+        dx = self.X//(n_dict+1)
+        dy = self.Y//(n_dict+1)
+        X = np.linspace(dx,self.X-dx,n_dict).astype(np.int64)
+        Y = np.linspace(dy,self.Y-dy,n_dict).astype(np.int64)
+        XX, YY = np.meshgrid(X,Y)
+        self.XX = XX.ravel()
+        self.YY = YY.ravel()
+        # plt.figure()
+        # plt.imshow(self.im)
+        # plt.scatter(XX, YY, color='r')
+        self.dict = []
+        delta = patch_size//2
+        for i in range(len(XX)):
+            patch = self.im[YY[i]-delta: YY[i]+delta+1, XX[i]-delta: XX[i]+delta+1 ]
+            self.dict.append(patch)
+
         
+        
+        # print(XX,YY)
+
+    # def plot_patches(self):
+
 
     def calc_normals(self):
         for j,i in enumerate(range(0,self.n_points*2-1,2)):
@@ -103,17 +127,20 @@ class snake:
 
         self.bins = np.arange(0, 257) - 0.5
         self.n_bins = len(self.bins)
-        self.hist = np.histogram(self.im, bins=self.bins, normed=True)
-        self.hist_in = np.histogram(self.im[inside_mask], bins=self.bins, normed=True)
-        self.hist_out = np.histogram(self.im[outside_mask], bins=self.bins, normed=True)
+        self.hist = np.histogram(self.im, bins=self.bins, density=True)
+        self.hist_in = np.histogram(self.im[inside_mask], bins=self.bins, density=True)
+        self.hist_out = np.histogram(self.im[outside_mask], bins=self.bins, density=True)
 
         # self.hist_diff = np.reshape(self.hist_out[0] - self.hist_in[0],(-1,self.n_bins))
         self.hist_scale = self.hist_out[0] + self.hist_in[0]
-        self.p_in = self.hist_in[0] / self.hist_scale
-        self.p_out = self.hist_out[0] / self.hist_scale
+        self.p_in = np.divide(self.hist_in[0], self.hist_scale, out=np.zeros_like(self.hist_in[0]), where=self.hist_scale!=0) # nan become zero from division with 0
+        self.p_out = np.divide(self.hist_out[0], self.hist_scale, out=np.zeros_like(self.hist_out[0]), where=self.hist_scale!=0)
         self.p_diff = np.reshape(self.p_in - self.p_out,(-1,self.n_bins-1))
         self.p_diff = np.nan_to_num(self.p_diff, 0.0)
         self.interp_prop = interpolate.interp1d(np.arange(0,256), self.p_diff, kind="linear")
+
+    def calc_snake_length(self):
+        self.length = np.sum(np.linalg.norm(np.diff(self.points, axis=0), axis=1))
 
 
     def plot_histograms(self, with_gaussians=False):
@@ -181,10 +208,10 @@ class snake:
 
     def calc_norm_forces(self, method="means"):
         # using area means
-        if method is "means":
+        if method == "means":
             self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
         # using pixel probability
-        if method is "prob":
+        if method == "prob":
             self.f_ext = self.interp_prop(self.im_values)
         #print(self.f_ext)
     
@@ -214,6 +241,7 @@ class snake:
         self.calc_area_means()
         self.calc_area_histograms()
         self.calc_norm_forces(method="prob")
+        self.calc_snake_length()
         
 
         if update:
@@ -238,36 +266,66 @@ class snake:
             arr = np.roll(arr, -1)
             arr[-1] = val
             return arr
-
+        
         self.update_snake(False) # update all values without updating the snake
         if ax is None:
-            fig, ax = plt.subplots(1)
+            fig, ax = plt.subplots(1,2)
         # need better convergence criteria,  i.e. movement of points?
         # lower tau if it bounces?
-        last_movement = np.full(7,np.nan)
-
+        movement_all = []
+        length_all = []
+        movement = 0
+        # last_movement = np.full(7,np.nan)
+        min_iter = 10
+        last_movement = np.full(min_iter,1.0)
+        last_length = np.full(min_iter, self.length)#self.length)
+        last_length[0] = 0
+        
         # while (div := (abs(np.mean(self.im_values) - np.mean([self.m_in,self.m_out] ))/np.mean([self.m_in,self.m_out]) )*100)  > conv_lim_pix:
-        while True:
-            movement = np.mean(np.linalg.norm(self.points - self.prev_points, axis=1)**2)
+        print(abs((np.mean(last_length) - self.length) / self.length * 100))
+        while abs((perc_diff := (np.mean(last_length) - self.length) / self.length))*100 > 0.1 or self.cycle < 10:
             last_movement = pop_push(last_movement, movement)
             mean_last_movement = np.nanmean(last_movement)
             if plot and self.cycle % 1 == 0: # only plot every t cycles?
-                ax.clear()
-                # ax[1].clear()
-                self.show(ax=ax,show_normals=show_normals)
-                print(self.cycle)
-                # ax[1].plot(np.arange(0, self.cycle), movement)
-                # ax[1].axhline( y=mean_last_movement)
+                ax[0].clear()
+                ax[1].clear()
+                self.show(ax=ax[0], show_normals=show_normals)
+                
+                # ax[1].plot(np.arange(0, self.cycle), movement_all)
+                ax[1].plot(np.arange(0, self.cycle), length_all)
+                # ax[1].axhline( y=mean_last_movement,color='k')
+                # ax[1].axhline( y=np.mean(movement_all),color='r')
+                ax[1].axhline( y=np.mean(length_all), color='b')
+                ax[1].axhline( y=np.mean(last_length), color='g')
+                ax[1].axvline( x=self.cycle - min_iter, color='k')
+                # ax[1].set_xlim([0,25])
                 plt.draw()
                 plt.pause(0.000001)
             self.update_snake()
+            movement = np.mean(np.linalg.norm(self.points - self.prev_points, axis=1))
+            movement_all.append(movement)
+            last_length = pop_push(last_length, self.length)
+            length_all.append(self.length)
+
             # print(div)
             # print(np.sum(self.f_ext))
-            print(movement, mean_last_movement, abs((movement-mean_last_movement)/mean_last_movement*100), sep = "\t")
+            # print(movement, mean_last_movement, abs((movement-mean_last_movement)/mean_last_movement*100),np.mean(movement_all), sep = "\t")
+            # print(np.mean(last_length) - np.mean(length_all))
+            # self.tau = self.tau_init * abs(mean_last_movement-2)
+            # self.tau = self.tau_init * ( 1 + abs(perc_diff)/100)
+            # if perc_diff <= 0:
+            change_factor = abs(abs(perc_diff) -1)
+            self.tau *= change_factor
+            self.tau = np.clip(self.tau, 1, 100)
+            print(self.cycle)
+            print(abs(perc_diff))
+            print(change_factor)
+            
+            print(self.tau)
             # print(mean_last_movement)
             # print(movement < mean_last_movement)
-        # print(div)
-
+        print(perc_diff)
+        
 
 
     def update_im(self, im):
@@ -360,16 +418,16 @@ class snake:
         if ax is None:
             fig, ax = plt.subplots(1)
         ax.imshow(self.im,cmap="gray")
+        ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
         if show_normals:
-            ax.plot(self.points[:,0], self.points[:,1],'.-', color="C2")
+            # ax.plot(self.points[:,0], self.points[:,1],'.-', color="C2")
             self.show_normals(ax=ax)
-        else:
-            ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
+        # else:
 
     def show_normals(self, ax):
         
-        adjusted_normals =  self.tau*np.diag(self.f_ext.flatten()) @ self.normals
-        ax.quiver(self.points[:,0],self.points[:,1],adjusted_normals[:,0], -adjusted_normals[:,1], color="red")
+        adjusted_normals =  self.tau * np.diag(self.f_ext.flatten()) @ self.normals
+        ax.quiver(self.points[:,0], self.points[:,1], adjusted_normals[:,0], adjusted_normals[:,1], color="red", minshaft=1 ,minlength=0.1, scale=0.1, units="xy", angles="xy")
         #ax.quiver(self.points[:,0],self.points[:,1],self.normals[:,0], -self.normals[:,1], color="green")
 
     def plot_im_values(self, ax=None):
