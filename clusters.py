@@ -7,19 +7,20 @@ import matplotlib.pyplot as plt
 import os
 import AiA
 import cv2
-from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
+from sklearn.cluster import KMeans
 from PIL import Image
 
-# fisk = plt.imread("probabilistic_data/12003.jpg") #RGB
-# plt.imshow(fisk)
-# plt.show()
 
+fisk = plt.imread("probabilistic_data/simple_test.png") #RGB
+
+
+print("hej")
 
 def clustering(image_path, num_clusters):
     image = plt.imread(image_path)
-    red  = image[:,:,0]
-    green = image[:,:,1]
-    blue  = image[:,:,2]
+    # red  = image[:,:,0]
+    # green = image[:,:,1]
+    # blue  = image[:,:,2]
     Z = np.reshape(image, (-1, 3))
     
     name = "K-means"
@@ -109,5 +110,5 @@ def plot_clustering_3D(image_path, num_clusters):
     
     return
 
-plot_clustering_3D("probabilistic_data/plante_downsize.jpg", 2)
-plot_clustering_2D("probabilistic_data/plante_downsize.jpg", 2)
+# plot_clustering_3D("probabilistic_data/plante_downsize.jpg", 2)
+# plot_clustering_2D("probabilistic_data/plante_downsize.jpg", 2)

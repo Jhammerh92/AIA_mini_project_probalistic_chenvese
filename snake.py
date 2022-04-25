@@ -1,8 +1,10 @@
+from cv2 import kmeans
 import numpy as np
 import skimage.draw
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from sklearn.cluster import KMeans
 
 
 class snake:
@@ -15,6 +17,7 @@ class snake:
         self.im_values = np.zeros((n_points,1)) 
         self.im = im
         self.im_raveled = self.im.ravel()
+       
 
 
         self.Y = im.shape[0]
@@ -82,9 +85,9 @@ class snake:
     def plot_patches(self):
         patch_work = []
         patch_row = []
-        for i in range(len(self.XX)):
+        for i in range(self.n_dict):
             patch_row.append(self.dict[i])
-            if i % (self.n_dict-1) == 0 and i != 0:
+            if i % self.n_dict == 0:
                 patch_work.append(patch_row)
                 patch_row = []
         plt.figure()
@@ -458,3 +461,30 @@ class snake:
         ax.axhline(y = self.m_out, linestyle='--',color="gray",linewidth=0.5)
         ax.axhline(y = np.mean(self.im_values), linestyle='--',color="red",linewidth=0.5)
         ax.axhline(y = np.mean([self.m_in,self.m_out]), linestyle='-',color="gray")
+
+
+
+    def init_clusters(self, n_cluster = 1):
+        self.n_clusters = n_cluster
+        self.model = KMeans(n_clusters=self.n_clusters)
+
+
+    ### Clusters
+    def clustering(self):
+
+        cluster_in = np.reshape(self.im[self.inside_mask], (-1, 3))
+        cluster_out = np.reshape(self.im[self.outside_mask], (-1, 3))
+
+        fit_in = self.model.fit(cluster_in)
+        fit_out = self.model.fit(cluster_out)
+
+        dist_in = fit_in.inertia_
+        dist_out = fit_out.inertia_
+
+        self.cluster_prob = dist_in / (dist_in + dist_out)
+
+        return 
+    
+    
+
+    
