@@ -17,7 +17,7 @@ class snake:
         self.im_values = np.zeros((n_points,1)) 
         self.im = im
         self.im_raveled = self.im.ravel()
-        self.im_raveled_color = np.reshape(self.im, (-1, 3))
+       
 
 
         self.Y = im.shape[0]
@@ -86,7 +86,7 @@ class snake:
         patch_work = []
         patch_row = []
         for i in range(self.n_dict):
-            patch_row.append(dict[i])
+            patch_row.append(self.dict[i])
             if i % self.n_dict == 0:
                 patch_work.append(patch_row)
                 patch_row = []
@@ -461,20 +461,27 @@ class snake:
 
 
 
-    def init_clusters(self, n_cluster = 2):
+    def init_clusters(self, n_cluster = 1):
         self.n_clusters = n_cluster
         self.model = KMeans(n_clusters=self.n_clusters)
-        self.label = self.model.labels_
 
 
     ### Clusters
     def clustering(self):
 
-        fit = self.model.fit(self.im_raveled_color)
-        self.label = fit.labels_
+        cluster_in = np.reshape(self.im[self.inside_mask], (-1, 3))
+        cluster_out = np.reshape(self.im[self.outside_mask], (-1, 3))
 
-        self.im[self.inside_mask]
+        fit_in = self.model.fit(cluster_in)
+        fit_out = self.model.fit(cluster_out)
+
+        dist_in = fit_in.inertia_
+        dist_out = fit_out.inertia_
+
+        self.cluster_prob = dist_in / (dist_in + dist_out)
 
         return 
+    
+    
 
     
