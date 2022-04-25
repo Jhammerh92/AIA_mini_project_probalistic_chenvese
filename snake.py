@@ -1,8 +1,10 @@
+from cv2 import kmeans
 import numpy as np
 import skimage.draw
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from sklearn.cluster import KMeans
 
 
 class snake:
@@ -15,6 +17,7 @@ class snake:
         self.im_values = np.zeros((n_points,1)) 
         self.im = im
         self.im_raveled = self.im.ravel()
+        self.im_raveled_color = np.reshape(self.im, (-1, 3))
 
 
         self.Y = im.shape[0]
@@ -440,3 +443,23 @@ class snake:
         ax.axhline(y = self.m_out, linestyle='--',color="gray",linewidth=0.5)
         ax.axhline(y = np.mean(self.im_values), linestyle='--',color="red",linewidth=0.5)
         ax.axhline(y = np.mean([self.m_in,self.m_out]), linestyle='-',color="gray")
+
+
+
+    def init_clusters(self, n_cluster = 2):
+        self.n_clusters = n_cluster
+        self.model = KMeans(n_clusters=self.n_clusters)
+        self.label = self.model.labels_
+
+
+    ### Clusters
+    def clustering(self):
+
+        fit = self.model.fit(self.im_raveled_color)
+        self.label = fit.labels_
+
+        self.im[self.inside_mask]
+
+        return 
+
+    
