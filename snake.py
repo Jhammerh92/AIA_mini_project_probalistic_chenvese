@@ -1,4 +1,5 @@
 from cv2 import kmeans
+import cv2
 import numpy as np
 import skimage.draw
 from scipy import interpolate
@@ -14,8 +15,14 @@ class snake:
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
         self.normals = np.empty((n_points, 2))
-        self.im_values = np.zeros((n_points,1)) 
         self.im = im
+        self.im_values = np.zeros((n_points,1))
+        
+        if (im.ndim == 3):
+            self.im_color = im
+            self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY)
+            self.im_values_color = np.zeros((n_points,3))
+
         self.im_raveled = self.im.ravel()
        
 
@@ -32,6 +39,7 @@ class snake:
 
         self.init_snake_to_image(r=None)
         
+        self.init_clusters()
 
         self.update_snake(False)
         
@@ -55,10 +63,22 @@ class snake:
 
         self.calc_normals()
 
+    def interp_color(self,x,y):
+        R = self.interp_color_R(x,y)
+        G = self.interp_color_G(x,y)
+        B = self.interp_color_B(x,y)
+
+        return np.r_[R, G, B]
+
+
     def init_interp_function(self):
         X = np.arange(0,self.X)
         Y = np.arange(0,self.Y)
         self.interp_f = interpolate.interp2d(Y,X, self.im.T, kind="linear")
+        self.interp_color_R = interpolate.interp2d(Y,X, self.im_color[:,:,0].T, kind="linear")
+        self.interp_color_G = interpolate.interp2d(Y,X, self.im_color[:,:,1].T, kind="linear")
+        self.interp_color_B = interpolate.interp2d(Y,X, self.im_color[:,:,2].T, kind="linear")
+
 
     def init_patch_dict(self, n_dict=10, patch_size=11):
         self.n_dict = n_dict
@@ -125,6 +145,7 @@ class snake:
         for i in range(self.n_points):
             #self.im_values[i] = self.im[int(self.points[i,1]),int(self.points[i,0])] # input as (y,x)
             self.im_values[i] = self.interp_f(self.points[i,1], self.points[i,0])
+            self.im_values_color[i] = self.interp_color(self.points[i,1], self.points[i,0])
         #print(self.im_values)
 
     def calc_im_mask(self):
@@ -234,6 +255,13 @@ class snake:
         # using pixel probability
         if method == "prob":
             self.f_ext = self.interp_prop(self.im_values)
+
+        if method == "cluster_prob":
+            dist_in = np.linalg.norm(self.im_values_color - self.cluster_center_in, axis = 1) 
+            dist_out = np.linalg.norm(self.im_values_color - self.cluster_center_out, axis = 1) 
+            prob = dist_in / (dist_in + dist_out)
+
+            self.f_ext = (prob - (1 - prob))
         #print(self.f_ext)
     
 
@@ -259,9 +287,11 @@ class snake:
     def update_snake(self, update=True, smoothing=True):
         self.get_point_im_values()
         self.calc_normals()
-        self.calc_area_means()
-        self.calc_area_histograms()
-        self.calc_norm_forces(method="prob")
+        # self.calc_area_means()
+        # self.calc_area_histograms()
+        self.calc_im_mask()
+        self.clustering()
+        self.calc_norm_forces(method="cluster_prob")
         self.calc_snake_length()
         
 
@@ -336,7 +366,7 @@ class snake:
             # self.tau = self.tau_init * ( 1 + abs(perc_diff)/100)
             # if perc_diff <= 0:
             change_factor = abs(abs(perc_diff) -1)
-            self.tau *= change_factor
+            # self.tau *= change_factor
             self.tau = np.clip(self.tau, 1, 100)
             print(self.cycle)
             print(abs(perc_diff))
@@ -472,19 +502,17 @@ class snake:
     ### Clusters
     def clustering(self):
 
-        cluster_in = np.reshape(self.im[self.inside_mask], (-1, 3))
-        cluster_out = np.reshape(self.im[self.outside_mask], (-1, 3))
+        cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
+        cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
 
         fit_in = self.model.fit(cluster_in)
         fit_out = self.model.fit(cluster_out)
 
-        dist_in = fit_in.inertia_
-        dist_out = fit_out.inertia_
-
-        self.cluster_prob = dist_in / (dist_in + dist_out)
+        self.cluster_center_in = fit_in.cluster_centers_
+        self.cluster_center_out = fit_out.cluster_centers_
 
         return 
     
-    
+
 
     
