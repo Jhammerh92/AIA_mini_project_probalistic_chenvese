@@ -71,8 +71,8 @@ class snake:
         # plt.scatter(XX, YY, color='r')
         self.dict = []
         delta = patch_size//2
-        for i in range(len(XX)):
-            patch = self.im[YY[i]-delta: YY[i]+delta+1, XX[i]-delta: XX[i]+delta+1 ]
+        for i in range(len(self.XX)):
+            patch = self.im[self.YY[i]-delta: self.YY[i]+delta+1, self.XX[i]-delta: self.XX[i]+delta+1 ]
             self.dict.append(patch)
 
         
@@ -82,12 +82,15 @@ class snake:
     def plot_patches(self):
         patch_work = []
         patch_row = []
-        for i in range(self.n_dict):
-            patch_row.append(dict[i])
-            if i % self.n_dict == 0:
+        for i in range(len(self.XX)):
+            patch_row.append(self.dict[i])
+            if i % (self.n_dict-1) == 0 and i != 0:
                 patch_work.append(patch_row)
                 patch_row = []
         plt.figure()
+        
+        plt.imshow(np.asarray(patch_work))
+    
 
 
     def calc_normals(self):
