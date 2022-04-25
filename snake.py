@@ -39,13 +39,14 @@ class snake:
             self.points[i,:] = [1+np.cos(angs[i]), 1+np.sin(angs[i])]
 
         self.calc_normals()
+        self.calc_im_mask()
     
     def init_snake_to_image(self,r=None):
         x,y = self.im.shape # changes this to self.x ..
         if r is None:
             r = x/np.sqrt(2*np.pi)
             
-        angs = np.linspace(0,2*np.pi, self.n_points,endpoint=False)
+        angs = np.linspace(0,2*np.pi, self.n_points, endpoint=False)
         for i in range(self.n_points):
             self.points[i,:] = [x/2+np.cos(angs[i])*r, y/2+np.sin(angs[i])*r]
 
@@ -78,7 +79,15 @@ class snake:
         
         # print(XX,YY)
 
-    # def plot_patches(self):
+    def plot_patches(self):
+        patch_work = []
+        patch_row = []
+        for i in range(self.n_dict):
+            patch_row.append(dict[i])
+            if i % self.n_dict == 0:
+                patch_work.append(patch_row)
+                patch_row = []
+        plt.figure()
 
 
     def calc_normals(self):
@@ -112,24 +121,30 @@ class snake:
             self.im_values[i] = self.interp_f(self.points[i,1], self.points[i,0])
         #print(self.im_values)
 
+    def calc_im_mask(self):
+        self.inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
+        self.outside_mask =  ~self.inside_mask
 
     def calc_area_means(self):
-        inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
-        outside_mask =  ~inside_mask
+        # inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
+        # outside_mask =  ~inside_mask
+        self.calc_im_mask()
 
-        self.m_in = np.mean(self.im[inside_mask])
-        self.m_out = np.mean(self.im[outside_mask])
+        self.m_in = np.mean(self.im[self.inside_mask])
+        self.m_out = np.mean(self.im[self.outside_mask])
         #print(self.m_in,self.m_out)
 
     def calc_area_histograms(self):
-        inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
-        outside_mask =  ~inside_mask
+        # inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
+        # outside_mask =  ~inside_mask
+
+        self.calc_im_mask()
 
         self.bins = np.arange(0, 257) - 0.5
         self.n_bins = len(self.bins)
         self.hist = np.histogram(self.im, bins=self.bins, density=True)
-        self.hist_in = np.histogram(self.im[inside_mask], bins=self.bins, density=True)
-        self.hist_out = np.histogram(self.im[outside_mask], bins=self.bins, density=True)
+        self.hist_in = np.histogram(self.im[self.inside_mask], bins=self.bins, density=True)
+        self.hist_out = np.histogram(self.im[self.outside_mask], bins=self.bins, density=True)
 
         # self.hist_diff = np.reshape(self.hist_out[0] - self.hist_in[0],(-1,self.n_bins))
         self.hist_scale = self.hist_out[0] + self.hist_in[0]
