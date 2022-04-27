@@ -38,7 +38,7 @@ class snake:
         self.init_interp_function()
         self.create_smoothing_matrix(alpha=alpha,beta=beta)
 
-        self.init_snake_to_image(r=None)
+        self.init_snake_to_image(r=150)
         
         self.init_clusters()
 
@@ -262,7 +262,7 @@ class snake:
             dist_out = np.linalg.norm(self.im_values_color - self.cluster_center_out, axis = 1) 
             prob = dist_in / (dist_in + dist_out)
 
-            self.f_ext = (prob - (1 - prob))
+            self.f_ext = -(prob - (1 - prob))
         #print(self.f_ext)
     
 
@@ -328,14 +328,14 @@ class snake:
         length_all = []
         movement = 0
         # last_movement = np.full(7,np.nan)
-        min_iter = 10
+        min_iter = 40
         last_movement = np.full(min_iter,1.0)
         last_length = np.full(min_iter, self.length)#self.length)
         last_length[0] = 0
         
         # while (div := (abs(np.mean(self.im_values) - np.mean([self.m_in,self.m_out] ))/np.mean([self.m_in,self.m_out]) )*100)  > conv_lim_pix:
         print(abs((np.mean(last_length) - self.length) / self.length * 100))
-        while abs((perc_diff := (np.mean(last_length) - self.length) / self.length))*100 > 0.1 or self.cycle < 10:
+        while abs((perc_diff := (np.mean(last_length) - self.length) / self.length))*100 > 0.1 or self.cycle < min_iter:
             last_movement = pop_push(last_movement, movement)
             mean_last_movement = np.nanmean(last_movement)
             if plot and self.cycle % 1 == 0: # only plot every t cycles?
@@ -506,11 +506,14 @@ class snake:
     ### Clusters
     def clustering(self):
 
+        
+
         self.cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
         self.cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
 
         self.cluster_center_in = np.average(self.cluster_in, axis = 0)
         self.cluster_center_out = np.average(self.cluster_out, axis = 0)
+
 
         return 
     

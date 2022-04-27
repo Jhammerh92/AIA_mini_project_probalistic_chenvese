@@ -11,17 +11,17 @@ from sklearn.cluster import KMeans
 from PIL import Image
 
 
-im= plt.imread("probabilistic_data/12003.jpg") #RGB
+im= plt.imread("probabilistic_data/108073.jpg") #RGB
 
-snake = snek.snake(150, im, tau = 10, alpha = 0.05, beta = 0.05)
+snake = snek.snake(150, im, tau = 10, alpha = 0.1, beta = 0.1)
 # print(snake.cluster_center_in)
 # print(snake.cluster_center_out)
 
 snake.converge_to_shape(ax=None, conv_lim_pix=0.01, show_normals=True)
 
+
 plt.show()
 
-image[200:400,200:400]
 
 # def clustering(image_path, num_clusters):
 #     image = plt.imread(image_path)
