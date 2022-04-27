@@ -22,7 +22,8 @@ class snake:
             self.im_color = im
             self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY)
             self.im_values_color = np.zeros((n_points,3))
-
+        else:
+            self.im_color = None
         self.im_raveled = self.im.ravel()
        
 
@@ -53,7 +54,7 @@ class snake:
         self.calc_im_mask()
     
     def init_snake_to_image(self,r=None):
-        x,y = self.im.shape # changes this to self.x ..
+        y,x = self.im.shape # changes this to self.x ..
         if r is None:
             r = x/np.sqrt(2*np.pi)
             
@@ -468,7 +469,10 @@ class snake:
     def show(self, ax=None, show_normals=False):
         if ax is None:
             fig, ax = plt.subplots(1)
-        ax.imshow(self.im,cmap="gray")
+        if (np.any(self.im_color == None)):
+            ax.imshow(self.im,cmap="gray")
+        else:
+            ax.imshow(self.im_color)
         ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
         if show_normals:
             # ax.plot(self.points[:,0], self.points[:,1],'.-', color="C2")
@@ -502,14 +506,11 @@ class snake:
     ### Clusters
     def clustering(self):
 
-        cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
-        cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
+        self.cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
+        self.cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
 
-        fit_in = self.model.fit(cluster_in)
-        fit_out = self.model.fit(cluster_out)
-
-        self.cluster_center_in = fit_in.cluster_centers_
-        self.cluster_center_out = fit_out.cluster_centers_
+        self.cluster_center_in = np.average(self.cluster_in, axis = 0)
+        self.cluster_center_out = np.average(self.cluster_out, axis = 0)
 
         return 
     
