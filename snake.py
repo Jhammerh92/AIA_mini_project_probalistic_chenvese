@@ -4,17 +4,20 @@ import skimage.draw
 from scipy import interpolate
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import scipy.signal as signal
 from sklearn.cluster import KMeans
+from sklearn.neighbors import NearestNeighbors
 
 
 class snake:
 
-    def __init__(self, n_points, im, tau = 200, alpha=0.5, beta=0.5):   
+    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None):   
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
         self.normals = np.empty((n_points, 2))
         self.im_values = np.zeros((n_points,1)) 
+        self.patch_values = np.zeros((n_points,1)) 
         self.im = im
         self.im_raveled = self.im.ravel()
        
@@ -22,6 +25,12 @@ class snake:
 
         self.Y = im.shape[0]
         self.X = im.shape[1]
+        XX, YY = np.meshgrid(np.arange(self.X), np.arange(self.Y))
+        XX = XX.ravel()
+        YY = YY.ravel()
+        self.XXYY = np.c_[XX,YY]
+
+
         self.f_ext= np.ones((n_points,1))
         self.tau = tau
         self.tau_init = tau
@@ -29,9 +38,12 @@ class snake:
 
         self.init_interp_function()
         self.create_smoothing_matrix(alpha=alpha,beta=beta)
-
-        self.init_snake_to_image(r=None)
         
+
+        self.init_snake_to_image(r=r)
+        
+
+        self.init_patch_dict(patch_size=11)
 
         self.update_snake(False)
         
@@ -55,6 +67,16 @@ class snake:
 
         self.calc_normals()
 
+    def interp2d_to_points(self, f, x, y):
+        # f is the 2d interp function
+        return interpolate.dfitpack.bispeu(f.tck[0],
+                                            f.tck[1],
+                                            f.tck[2], 
+                                            f.tck[3], 
+                                            f.tck[4], 
+                                            x, y)[0]
+
+
     def init_interp_function(self):
         X = np.arange(0,self.X)
         Y = np.arange(0,self.Y)
@@ -62,6 +84,10 @@ class snake:
 
     def init_patch_dict(self, n_dict=10, patch_size=11):
         self.n_dict = n_dict
+        self.patch_size = patch_size
+        self.delta = patch_size//2
+        self.padded_im = np.pad(self.im, pad_width=self.delta, constant_values=0)
+
         dx = self.X//(n_dict+1)
         dy = self.Y//(n_dict+1)
         X = np.linspace(dx,self.X-dx,n_dict).astype(np.int64)
@@ -69,30 +95,126 @@ class snake:
         XX, YY = np.meshgrid(X,Y)
         self.XX = XX.ravel()
         self.YY = YY.ravel()
+        self.patch_coords = np.c_[self.XX, self.YY]
         # plt.figure()
         # plt.imshow(self.im)
         # plt.scatter(XX, YY, color='r')
         self.dict = []
-        delta = patch_size//2
+        self.dict_ravel = []
         for i in range(len(self.XX)):
-            patch = self.im[self.YY[i]-delta: self.YY[i]+delta+1, self.XX[i]-delta: self.XX[i]+delta+1 ]
-            self.dict.append(patch)
+            patch = self.im[self.YY[i]-self.delta: self.YY[i]+self.delta+1, self.XX[i]-self.delta: self.XX[i]+self.delta+1 ]
+            self.dict.append(patch.astype(np.float64))
+            self.dict_ravel.append(patch.astype(np.float64).ravel())
 
-        
-        
-        # print(XX,YY)
 
-    def plot_patches(self):
+        self.init_im_dict()
+        self.init_knn_fitter()
+
+
+    def init_im_dict(self):
+        im_dict = []
+        for y in range(self.Y):
+            y += self.delta
+            for x in range(self.X):
+                x += self.delta
+                im_dict.append(self.padded_im[y-self.delta: y+self.delta+1, x-self.delta: x+self.delta+1].ravel().astype(np.float64))
+        self.im_dict = np.vstack(im_dict)
+
+
+
+    def least_square_crosscorr(self, patch):
+        epsilon = 1e-6
+        delta = self.patch_size//2
+        response = np.empty_like(self.im.astype(np.float64))
+        for y in range(self.Y):
+            y += self.delta
+            for x in range(self.X):
+                x += self.delta
+                response[y-self.delta,x-self.delta] = np.sum(abs((self.padded_im[y-self.delta: y+delta+1, x-self.delta: x+self.delta+1] - patch))**2)
+        # response = np.log(response + epsilon)
+        # print(response.shape)
+        # print(self.im.shape)
+
+        return (-response+ np.max(response)+ epsilon)
+
+    # virker ikke med ravelled dicts
+    def conv_patch_dict(self):
+        # test_patch = 53
+        # delta = self.patch_size//2
+        stack = []
+        for patch_idx in range(self.n_dict**2):
+            print(patch_idx)
+            patch = self.dict[patch_idx].astype(np.float64)
+            # patch = (patch-np.min(patch))/np.max(patch-np.min(patch)) * 255
+            patch_mean = np.mean(patch)
+            # im_mean = np.mean(self.im.astype(np.float64))
+            # im_patch_response = signal.correlate2d(self.im.astype(np.float64)-patch_mean, patch-patch_mean, mode='same', fillvalue = 0.0)
+            im_patch_response = self.least_square_crosscorr(patch)
+            stack.append(im_patch_response)
+            # im_patch_response_test = self.ordered_crosscorr(patch)
+            max_response_yx = np.unravel_index(np.argmax(im_patch_response, axis=None), im_patch_response.shape)
+        stack = np.dstack(stack)
+        print(stack.shape)
+        assignment = np.argmax(stack, axis=2)
+        print(assignment)
+        plt.figure()
+        plt.imshow(assignment)
+
+    
+    def init_knn_fitter(self):
+        self.knn_fitter = NearestNeighbors(n_neighbors=1, radius=self.patch_size * 255.0) # kan måske laves i init
+        self.knn_fitter.fit(self.dict_ravel)
+
+
+
+    def calc_patch_knn(self):
+
+        # test = knn_fitter.kneighbors(np.random.rand(2,11**2)*255, return_distance=False)
+        # this next line is "slow"
+        self.dict_assignment = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
+
+        self.dict_assignment = np.reshape(self.dict_assignment,(self.im.shape))
+
+        self.dict_assignment_in = self.dict_assignment[self.inside_mask]
+        self.dict_assignment_out = self.dict_assignment[self.outside_mask]
+        self.patch_bins = np.arange(0,101)-0.5
+        self.patch_hist = np.histogram(self.dict_assignment, bins=self.patch_bins, density=True)
+        self.patch_hist_in = np.histogram(self.dict_assignment[self.inside_mask], bins=self.patch_bins, density=True)
+        self.patch_hist_out = np.histogram(self.dict_assignment[self.outside_mask], bins=self.patch_bins, density=True)
+
+        # self.hist_diff = np.reshape(self.hist_out[0] - self.hist_in[0],(-1,self.n_bins))
+        self.patch_hist_scale = self.patch_hist_out[0] + self.patch_hist_in[0]
+        self.patch_p_in = np.divide(self.patch_hist_in[0], self.patch_hist_scale, out=np.zeros_like(self.patch_hist_in[0]), where=self.patch_hist_scale!=0) # nan become zero from division with 0
+        self.patch_p_out = np.divide(self.patch_hist_out[0], self.patch_hist_scale, out=np.zeros_like(self.patch_hist_out[0]), where=self.patch_hist_scale!=0)
+        self.patch_p_diff = np.reshape(self.patch_p_in - self.patch_p_out,(-1,len(self.patch_bins)-1))
+        self.patch_p_diff = np.nan_to_num(self.patch_p_diff, 0.0)
+        self.patch_interp_prop = interpolate.interp1d(np.arange(0,100), self.patch_p_diff, kind="linear")
+
+
+        # DEBUGGING plots
+        # plt.figure()
+        # plt.bar(np.arange(100), height=self.patch_hist[0], width=1.0, color='k', alpha=0.5)
+        # plt.bar(np.arange(100), height=self.patch_hist_in[0], width=1.0, color='r', alpha=0.5)
+        # plt.bar(np.arange(100), height=self.patch_hist_out[0], width=1.0, color='b', alpha=0.5)
+        # print(test)
+
+    
+
+
+
+    def plot_patch_dict(self):
         patch_work = []
         patch_row = []
-        for i in range(self.n_dict):
+        for i in range(len(self.patch_coords)):
             patch_row.append(self.dict[i])
-            if i % self.n_dict == 0:
-                patch_work.append(patch_row)
+            if (i+1) % (self.n_dict) == 0 and i > 0:
+                patch_work.append(np.concatenate(patch_row, axis =1))
                 patch_row = []
-        plt.figure()
-        
-        plt.imshow(np.asarray(patch_work))
+        fig, ax = plt.subplots(1,2)
+        patch_work_array = np.concatenate(patch_work, axis = 0)
+        ax[0].imshow(patch_work_array, cmap= "gray")
+        ax[1].imshow(self.dict_assignment, cmap='nipy_spectral')
+
     
 
 
@@ -121,11 +243,20 @@ class snake:
     
 
     def get_point_im_values(self):
-        #self.im_values = np.empty((self.n_points,1)) 
-        for i in range(self.n_points):
-            #self.im_values[i] = self.im[int(self.points[i,1]),int(self.points[i,0])] # input as (y,x)
-            self.im_values[i] = self.interp_f(self.points[i,1], self.points[i,0])
+        # vectorised
+        self.im_values = self.interp2d_to_points(self.interp_f,self.points[:,1], self.points[:,0])
+        ravel_idx = ((self.Y) * np.floor(self.points[:,1]) + np.floor(self.points[:,0])).astype(np.int64)
+        # print(self.XXYY[ravel_idx],  self.points, self.XXYY[ravel_idx]- self.points)
+        self.patch_values = self.knn_fitter.kneighbors(np.array(self.im_dict[ravel_idx]), return_distance=False)
+        
+        # for i in range(self.n_points):
+            # self.im_values[i] = self.im[int(self.points[i,1]),int(self.points[i,0])] # input as (y,x)
+            # self.im_values[i] = self.interp_f(self.points[i,1], self.points[i,0])
+            # get xy to abs ravel_index
+            # ravel_idx = int(np.floor((self.X-1) * self.points[i,0]) + np.floor(self.points[i,1]))
+            # self.patch_values[i] = self.knn_fitter.kneighbors(np.array([self.im_dict[ravel_idx]]), return_distance=False)
         #print(self.im_values)
+        return
 
     def calc_im_mask(self):
         self.inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
@@ -134,7 +265,7 @@ class snake:
     def calc_area_means(self):
         # inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
         # outside_mask =  ~inside_mask
-        self.calc_im_mask()
+        # self.calc_im_mask()
 
         self.m_in = np.mean(self.im[self.inside_mask])
         self.m_out = np.mean(self.im[self.outside_mask])
@@ -143,8 +274,7 @@ class snake:
     def calc_area_histograms(self):
         # inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
         # outside_mask =  ~inside_mask
-
-        self.calc_im_mask()
+        # self.calc_im_mask()
 
         self.bins = np.arange(0, 257) - 0.5
         self.n_bins = len(self.bins)
@@ -164,12 +294,25 @@ class snake:
         self.length = np.sum(np.linalg.norm(np.diff(self.points, axis=0), axis=1))
 
 
-    def plot_histograms(self, with_gaussians=False):
-        self.calc_area_histograms()
+    def plot_patch_histograms(self, ax=None):
+        if (ax is None):
+            fig, ax = plt.subplots(2)
+        ax[0].bar(np.arange(100), height=self.patch_hist_in[0], width=1.0, color='r',alpha=0.5)
+        ax[0].bar(np.arange(100), height=self.patch_hist_out[0], width=1.0, color='b',alpha=0.5)
+        ax[0].set_xlim([0,100])
+        # vmin_max = np.max(abs(self.hist_diff))
+        ax[1].imshow(self.patch_p_diff, cmap="bwr", aspect='auto', vmin=-1.0, vmax=1.0)
+        ax[1].set_xlim([0,100])
 
-        fig, ax = plt.subplots(2)
-        ax[0].bar(np.arange(256), height=self.hist_in[0], width=1.0, color='r')
-        ax[0].bar(np.arange(256), height=self.hist_out[0], width=1.0, color='b')
+
+
+
+    def plot_histograms(self,ax=None, with_gaussians=False):
+        self.calc_area_histograms()
+        if (ax is None):
+            fig, ax = plt.subplots(2)
+        ax[0].bar(np.arange(256), height=self.hist_in[0], width=1.0, color='r',alpha=0.5)
+        ax[0].bar(np.arange(256), height=self.hist_out[0], width=1.0, color='b',alpha=0.5)
         # ax[0].plot(self.hist_in[1][1:], self.p_in)
         # ax[0].plot(self.hist_in[1][1:], self.p_out)
         # ax[0].plot(self.hist_out[1][1:], self.p_out,color='b')
@@ -183,9 +326,9 @@ class snake:
         # print(np.sum(abs(self.hist_out[0] - self.hist_in[0])))
         # ax.plot(self.hist[1][1:], self.hist[0], 'k')
 
-        gauss_plot = norm.pdf(self.gauss_x, self.means, self.std)*self.pi
-        gauss_total = np.sum(gauss_plot, axis=0)
         if with_gaussians:
+            gauss_plot = norm.pdf(self.gauss_x, self.means, self.std)*self.pi
+            gauss_total = np.sum(gauss_plot, axis=0)
             ax.plot(self.gauss_x, gauss_total)
             for i in range(self.peaks):
                 ax.plot(self.gauss_x, gauss_plot[i])
@@ -234,6 +377,10 @@ class snake:
         # using pixel probability
         if method == "prob":
             self.f_ext = self.interp_prop(self.im_values)
+
+        if method == "patch_prob":
+            # = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
+            self.f_ext = self.patch_interp_prop(self.patch_values)
         #print(self.f_ext)
     
 
@@ -259,9 +406,12 @@ class snake:
     def update_snake(self, update=True, smoothing=True):
         self.get_point_im_values()
         self.calc_normals()
-        self.calc_area_means()
+        self.calc_im_mask()
+        # self.calc_area_means()
         self.calc_area_histograms()
-        self.calc_norm_forces(method="prob")
+        self.calc_patch_knn()
+        # self.calc_norm_forces(method="prob")
+        self.calc_norm_forces(method="patch_prob")
         self.calc_snake_length()
         
 
@@ -282,15 +432,19 @@ class snake:
             self.constrain_to_im()
             
         
-    def converge_to_shape(self,ax=None, conv_lim_pix=0.1, plot=True, show_normals=False):
+    def converge_to_shape(self, ax=None, conv_lim_pix=0.1, plot=True, show_normals=False):
         def pop_push(arr, val):
             arr = np.roll(arr, -1)
             arr[-1] = val
             return arr
         
-        self.update_snake(False) # update all values without updating the snake
+        # self.update_snake(False) # update all values without updating the snake
         if ax is None:
             fig, ax = plt.subplots(1,2)
+            # fig_hist, ax_hist = plt.subplots(2,1)
+            # fig_patch_hist, ax_patch_hist = plt.subplots(2,1)
+
+
         # need better convergence criteria,  i.e. movement of points?
         # lower tau if it bounces?
         movement_all = []
@@ -302,31 +456,49 @@ class snake:
         last_length = np.full(min_iter, self.length)#self.length)
         last_length[0] = 0
         
+        plot_snake_line, plot_normals = self.show(ax=ax[0], show_normals=show_normals)
         # while (div := (abs(np.mean(self.im_values) - np.mean([self.m_in,self.m_out] ))/np.mean([self.m_in,self.m_out]) )*100)  > conv_lim_pix:
-        print(abs((np.mean(last_length) - self.length) / self.length * 100))
-        while abs((perc_diff := (np.mean(last_length) - self.length) / self.length))*100 > 0.1 or self.cycle < 10:
+        # print(abs((np.mean(last_length) - self.length) / self.length * 100))
+        plt.pause(0.001)
+        while abs((perc_diff := (np.mean(last_length) - self.length) / self.length))*100 > 0.1 or self.cycle < 50:
             last_movement = pop_push(last_movement, movement)
+            length_all.append(self.length)
+            last_length = pop_push(last_length, self.length)
             mean_last_movement = np.nanmean(last_movement)
             if plot and self.cycle % 1 == 0: # only plot every t cycles?
-                ax[0].clear()
+                # ax[0].clear()
                 ax[1].clear()
-                self.show(ax=ax[0], show_normals=show_normals)
+                plot_snake_line[0].set_data(self.points[:,0], self.points[:,1])
+                plot_normals.set_offsets(self.points)
+                adjusted_normals = self.tau * np.diag(self.f_ext.flatten()) @ self.normals
+                plot_normals.set_UVC(adjusted_normals[:,0], adjusted_normals[:,1]) 
                 
                 # ax[1].plot(np.arange(0, self.cycle), movement_all)
-                ax[1].plot(np.arange(0, self.cycle), length_all)
                 # ax[1].axhline( y=mean_last_movement,color='k')
                 # ax[1].axhline( y=np.mean(movement_all),color='r')
+
+                ax[1].plot(np.arange(0, self.cycle+1), length_all)
                 ax[1].axhline( y=np.mean(length_all), color='b')
                 ax[1].axhline( y=np.mean(last_length), color='g')
                 ax[1].axvline( x=self.cycle - min_iter, color='k')
+
+
+                # self.plot_histograms(ax=ax_hist)
+
+                # self.plot_patch_histograms(ax=ax_patch_hist)
+
                 # ax[1].set_xlim([0,25])
-                plt.draw()
-                plt.pause(0.000001)
+                # plt.draw()
+                fig.canvas.draw_idle()
+                fig.canvas.start_event_loop(0.0001)
+                # fig.canvas.flush_events()
+                # fig_hist.canvas.draw_idle()
+                # fig_hist.canvas.flush_events()
+                # plt.draw()
+                # plt.pause(0.000001)
             self.update_snake()
             movement = np.mean(np.linalg.norm(self.points - self.prev_points, axis=1))
             movement_all.append(movement)
-            last_length = pop_push(last_length, self.length)
-            length_all.append(self.length)
 
             # print(div)
             # print(np.sum(self.f_ext))
@@ -335,14 +507,25 @@ class snake:
             # self.tau = self.tau_init * abs(mean_last_movement-2)
             # self.tau = self.tau_init * ( 1 + abs(perc_diff)/100)
             # if perc_diff <= 0:
+
+
+
+
+
             change_factor = abs(abs(perc_diff) -1)
             self.tau *= change_factor
             self.tau = np.clip(self.tau, 1, 100)
-            print(self.cycle)
             print(abs(perc_diff))
             print(change_factor)
-            
             print(self.tau)
+            
+            
+            
+            print(self.cycle)
+
+
+
+
             # print(mean_last_movement)
             # print(movement < mean_last_movement)
         print(perc_diff)
@@ -439,17 +622,21 @@ class snake:
         if ax is None:
             fig, ax = plt.subplots(1)
         ax.imshow(self.im,cmap="gray")
-        ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
+        line = ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
+        normals = None
         if show_normals:
             # ax.plot(self.points[:,0], self.points[:,1],'.-', color="C2")
-            self.show_normals(ax=ax)
+            normals = self.show_normals(ax=ax)
         # else:
+        return line, normals
 
     def show_normals(self, ax):
         
         adjusted_normals =  self.tau * np.diag(self.f_ext.flatten()) @ self.normals
-        ax.quiver(self.points[:,0], self.points[:,1], adjusted_normals[:,0], adjusted_normals[:,1], color="red", minshaft=1 ,minlength=0.1, scale=0.1, units="xy", angles="xy")
+        normals = ax.quiver(self.points[:,0], self.points[:,1], adjusted_normals[:,0], adjusted_normals[:,1], color="red", minshaft=1 ,minlength=0.1, scale=0.1, units="xy", angles="xy")
         #ax.quiver(self.points[:,0],self.points[:,1],self.normals[:,0], -self.normals[:,1], color="green")
+
+        return normals
 
     def plot_im_values(self, ax=None):
         if ax is None:
