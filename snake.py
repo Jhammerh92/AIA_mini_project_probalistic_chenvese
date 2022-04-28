@@ -50,7 +50,7 @@ class snake:
         
         self.method = method
 
-        self.init_snake_to_image(r=100)
+        self.init_snake_to_image(r=r)
 
         self.init_patch_dict(patch_size=11)
 
@@ -273,7 +273,8 @@ class snake:
         ravel_idx = ((self.Y) * np.floor(self.points[:,1]) + np.floor(self.points[:,0])).astype(np.int64)
         # print(self.XXYY[ravel_idx],  self.points, self.XXYY[ravel_idx]- self.points)
         self.patch_values = self.knn_fitter.kneighbors(np.array(self.im_dict[ravel_idx]), return_distance=False)
-        self.im_values_color = self.interp_color(self.points[:,1], self.points[:,0])
+        if not np.all(self.im_color is None):
+            self.im_values_color = self.interp_color(self.points[:,1], self.points[:,0])
         
         # for i in range(self.n_points):
             # self.im_values[i] = self.im[int(self.points[i,1]),int(self.points[i,0])] # input as (y,x)
@@ -402,11 +403,11 @@ class snake:
             self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
         # using pixel probability
         elif method == "prob":
-            self.f_ext = self.interp_prop(self.im_values)
+            self.f_ext = self.interp_prop(self.im_values).flatten()
 
         elif method == "patch_prob":
             # = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
-            self.f_ext = self.patch_interp_prop(self.patch_values)
+            self.f_ext = self.patch_interp_prop(self.patch_values).flatten()
         elif method == "cluster_prob":
             
 
@@ -417,7 +418,7 @@ class snake:
                                     self.patch_interp_prop(self.patch_values),
                                     -(self.prob_cluster - (1 - self.prob_cluster))])
 
-            self.f_ext = np.sum(self.weights * forces, axis)
+            self.f_ext = np.sum(self.weights * forces, axis=1)
 
     
 
@@ -448,7 +449,6 @@ class snake:
         self.calc_area_histograms()
         self.calc_patch_knn()
         self.clustering() 
-        # self.calc_norm_forces(method="prob")
         self.calc_norm_forces(method=self.method) # forces skal adderes med weights
         self.calc_snake_length()
         
@@ -551,7 +551,7 @@ class snake:
 
 
             change_factor = abs(abs(perc_diff) -1)
-            # self.tau *= change_factor
+            self.tau *= change_factor
             self.tau = np.clip(self.tau, 1, 100)
             print(abs(perc_diff))
             print(change_factor)
