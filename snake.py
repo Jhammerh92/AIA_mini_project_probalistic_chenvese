@@ -98,9 +98,11 @@ class snake:
         X = np.arange(0,self.X)
         Y = np.arange(0,self.Y)
         self.interp_f = interpolate.interp2d(Y,X, self.im.T, kind="linear")
-        self.interp_color_R = interpolate.interp2d(Y,X, self.im_color[:,:,0].T, kind="linear")
-        self.interp_color_G = interpolate.interp2d(Y,X, self.im_color[:,:,1].T, kind="linear")
-        self.interp_color_B = interpolate.interp2d(Y,X, self.im_color[:,:,2].T, kind="linear")
+        
+        if not (self.im_color is None):
+            self.interp_color_R = interpolate.interp2d(Y,X, self.im_color[:,:,0].T, kind="linear")
+            self.interp_color_G = interpolate.interp2d(Y,X, self.im_color[:,:,1].T, kind="linear")
+            self.interp_color_B = interpolate.interp2d(Y,X, self.im_color[:,:,2].T, kind="linear")
 
 
     def init_patch_dict(self, n_dict=10, patch_size=11):
