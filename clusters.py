@@ -11,9 +11,9 @@ from sklearn.cluster import KMeans
 from PIL import Image
 
 
-im= plt.imread("probabilistic_data/134052.jpg") #RGB
+im= plt.imread("probabilistic_data/124084.jpg") #RGB
 
-snake = snek.snake(150, im, tau = 30, alpha = 0.1, beta = 0.1, method = "cluster_prob")
+snake = snek.snake(150, im, tau = 10, alpha = 0.1, beta = 0.1, method = "cluster_prob")
 # print(snake.cluster_center_in)
 # print(snake.cluster_center_out)
 

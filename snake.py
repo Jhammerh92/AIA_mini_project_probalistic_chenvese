@@ -50,7 +50,7 @@ class snake:
         
         self.method = method
 
-        self.init_snake_to_image(r=r)
+        self.init_snake_to_image(r=100)
 
         self.init_patch_dict(patch_size=11)
 
@@ -93,7 +93,7 @@ class snake:
         # G = self.interp_color_G(x,y)
         # B = self.interp_color_B(x,y)
 
-        return np.r_[R, G, B]
+        return np.c_[R, G, B]
 
 
     def init_interp_function(self):
