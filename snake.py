@@ -12,7 +12,7 @@ from sklearn.neighbors import NearestNeighbors
 
 class snake:
 
-    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None):   
+    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None, weights = [1/3, 1/3, 1/3]):   
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
@@ -30,7 +30,7 @@ class snake:
             self.im_color = None
         self.im_raveled = self.im.ravel()
        
-
+        self.weights = weights
 
         self.Y = im.shape[0]
         self.X = im.shape[1]
@@ -50,8 +50,6 @@ class snake:
         
 
         self.init_snake_to_image(r=r)
-        
-        self.init_clusters()
 
         self.init_patch_dict(patch_size=11)
 
@@ -398,19 +396,24 @@ class snake:
         if method == "means":
             self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
         # using pixel probability
-        if method == "prob":
+        elif method == "prob":
             self.f_ext = self.interp_prop(self.im_values)
 
-        if method == "patch_prob":
+        elif method == "patch_prob":
             # = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
             self.f_ext = self.patch_interp_prop(self.patch_values)
-        if method == "cluster_prob":
-            dist_in = np.linalg.norm(self.im_values_color - self.cluster_center_in, axis = 1) 
-            dist_out = np.linalg.norm(self.im_values_color - self.cluster_center_out, axis = 1) 
-            prob = dist_in / (dist_in + dist_out)
+        elif method == "cluster_prob":
+            
 
-            self.f_ext = -(prob - (1 - prob))
+            self.f_ext = -(self.prob_cluster - (1 - self.prob_cluster))
         #print(self.f_ext)
+        elif method == "unify" :
+            forces = np.array([self.interp_prop(self.im_values),
+                                    self.patch_interp_prop(self.patch_values),
+                                    -(self.prob_cluster - (1 - self.prob_cluster))])
+
+            self.f_ext = np.sum(self.weights * forces, axis)
+
     
 
         
@@ -687,22 +690,27 @@ class snake:
 
 
 
-    def init_clusters(self, n_cluster = 1):
-        self.n_clusters = n_cluster
-        self.model = KMeans(n_clusters=self.n_clusters)
+    # def init_clusters(self, n_cluster = 1):
+    #     self.n_clusters = n_cluster
+    #     self.model = KMeans(n_clusters=self.n_clusters)
 
 
     ### Clusters
     def clustering(self):
 
+        if (np.all(self.im_color is None)):
+            return
+
+        cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
+        cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
+
+        cluster_center_in = np.average(cluster_in, axis = 0)
+        cluster_center_out = np.average(cluster_out, axis = 0)
+
+        dist_in = np.linalg.norm(self.im_values_color - cluster_center_in, axis = 1) 
+        dist_out = np.linalg.norm(self.im_values_color - cluster_center_out, axis = 1) 
         
-
-        self.cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
-        self.cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
-
-        self.cluster_center_in = np.average(self.cluster_in, axis = 0)
-        self.cluster_center_out = np.average(self.cluster_out, axis = 0)
-
+        self.prob_cluster = dist_in / (dist_in + dist_out)
 
         return 
     
