@@ -6,12 +6,12 @@ import cv2
 
 
 
-im = AiA.imread("probabilistic_data/test_A1.png", as_type=True,load_type=np.uint8)
+im = AiA.imread("probabilistic_data/134052.jpg", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/plante_downsize.jpg", as_grey = True)
 # im = im*255
 # AiA.imshow(im)
 
-snake = snek.snake(150, im, tau=50, alpha=0.01, beta=0.1)
+snake = snek.snake(150, im, tau=10, alpha=0.01, beta=0.1)
 
 snake.show() 
 # snake.init_EM_gaussians(peaks=3, std=35)

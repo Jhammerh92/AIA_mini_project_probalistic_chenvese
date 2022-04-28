@@ -85,9 +85,12 @@ class snake:
                                             x, y)[0]
                                             
     def interp_color(self,x,y):
-        R = self.interp_color_R(x,y)
-        G = self.interp_color_G(x,y)
-        B = self.interp_color_B(x,y)
+        R = self.interp2d_to_points(self.interp_color_R, x, y)
+        G = self.interp2d_to_points(self.interp_color_G, x, y)
+        B = self.interp2d_to_points(self.interp_color_B, x, y)
+        # R = self.interp_color_R(x,y)
+        # G = self.interp_color_G(x,y)
+        # B = self.interp_color_B(x,y)
 
         return np.r_[R, G, B]
 
@@ -269,6 +272,7 @@ class snake:
         ravel_idx = ((self.Y) * np.floor(self.points[:,1]) + np.floor(self.points[:,0])).astype(np.int64)
         # print(self.XXYY[ravel_idx],  self.points, self.XXYY[ravel_idx]- self.points)
         self.patch_values = self.knn_fitter.kneighbors(np.array(self.im_dict[ravel_idx]), return_distance=False)
+        self.im_values_color = self.interp_color(self.points[:,1], self.points[:,0])
         
         # for i in range(self.n_points):
             # self.im_values[i] = self.im[int(self.points[i,1]),int(self.points[i,0])] # input as (y,x)
