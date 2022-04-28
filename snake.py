@@ -1,4 +1,5 @@
 from cv2 import kmeans
+import cv2
 import numpy as np
 import skimage.draw
 from scipy import interpolate
@@ -19,6 +20,14 @@ class snake:
         self.im_values = np.zeros((n_points,1)) 
         self.patch_values = np.zeros((n_points,1)) 
         self.im = im
+
+        
+        if (im.ndim == 3):
+            self.im_color = im
+            self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY)
+            self.im_values_color = np.zeros((n_points,3))
+        else:
+            self.im_color = None
         self.im_raveled = self.im.ravel()
        
 
@@ -42,6 +51,7 @@ class snake:
 
         self.init_snake_to_image(r=r)
         
+        self.init_clusters()
 
         self.init_patch_dict(patch_size=11)
 
@@ -57,7 +67,7 @@ class snake:
         self.calc_im_mask()
     
     def init_snake_to_image(self,r=None):
-        x,y = self.im.shape # changes this to self.x ..
+        y,x = self.im.shape # changes this to self.x ..
         if r is None:
             r = x/np.sqrt(2*np.pi)
             
@@ -75,12 +85,23 @@ class snake:
                                             f.tck[3], 
                                             f.tck[4], 
                                             x, y)[0]
+                                            
+    def interp_color(self,x,y):
+        R = self.interp_color_R(x,y)
+        G = self.interp_color_G(x,y)
+        B = self.interp_color_B(x,y)
+
+        return np.r_[R, G, B]
 
 
     def init_interp_function(self):
         X = np.arange(0,self.X)
         Y = np.arange(0,self.Y)
         self.interp_f = interpolate.interp2d(Y,X, self.im.T, kind="linear")
+        self.interp_color_R = interpolate.interp2d(Y,X, self.im_color[:,:,0].T, kind="linear")
+        self.interp_color_G = interpolate.interp2d(Y,X, self.im_color[:,:,1].T, kind="linear")
+        self.interp_color_B = interpolate.interp2d(Y,X, self.im_color[:,:,2].T, kind="linear")
+
 
     def init_patch_dict(self, n_dict=10, patch_size=11):
         self.n_dict = n_dict
@@ -381,6 +402,12 @@ class snake:
         if method == "patch_prob":
             # = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
             self.f_ext = self.patch_interp_prop(self.patch_values)
+        if method == "cluster_prob":
+            dist_in = np.linalg.norm(self.im_values_color - self.cluster_center_in, axis = 1) 
+            dist_out = np.linalg.norm(self.im_values_color - self.cluster_center_out, axis = 1) 
+            prob = dist_in / (dist_in + dist_out)
+
+            self.f_ext = -(prob - (1 - prob))
         #print(self.f_ext)
     
 
@@ -410,8 +437,9 @@ class snake:
         # self.calc_area_means()
         self.calc_area_histograms()
         self.calc_patch_knn()
+        self.clustering() 
         # self.calc_norm_forces(method="prob")
-        self.calc_norm_forces(method="patch_prob")
+        self.calc_norm_forces(method="patch_prob") # forces skal adderes med weights
         self.calc_snake_length()
         
 
@@ -451,7 +479,7 @@ class snake:
         length_all = []
         movement = 0
         # last_movement = np.full(7,np.nan)
-        min_iter = 10
+        min_iter = 40
         last_movement = np.full(min_iter,1.0)
         last_length = np.full(min_iter, self.length)#self.length)
         last_length[0] = 0
@@ -513,7 +541,7 @@ class snake:
 
 
             change_factor = abs(abs(perc_diff) -1)
-            self.tau *= change_factor
+            # self.tau *= change_factor
             self.tau = np.clip(self.tau, 1, 100)
             print(abs(perc_diff))
             print(change_factor)
@@ -621,8 +649,14 @@ class snake:
     def show(self, ax=None, show_normals=False):
         if ax is None:
             fig, ax = plt.subplots(1)
-        ax.imshow(self.im,cmap="gray")
+        # ax.imshow(self.im,cmap="gray")
+        if (np.any(self.im_color == None)):
+            ax.imshow(self.im,cmap="gray")
+        else:
+            ax.imshow(self.im_color)
+        # ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
         line = ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
+
         normals = None
         if show_normals:
             # ax.plot(self.points[:,0], self.points[:,1],'.-', color="C2")
@@ -659,19 +693,17 @@ class snake:
     ### Clusters
     def clustering(self):
 
-        cluster_in = np.reshape(self.im[self.inside_mask], (-1, 3))
-        cluster_out = np.reshape(self.im[self.outside_mask], (-1, 3))
+        
 
-        fit_in = self.model.fit(cluster_in)
-        fit_out = self.model.fit(cluster_out)
+        self.cluster_in = np.reshape(self.im_color[self.inside_mask, :], (-1, 3))
+        self.cluster_out = np.reshape(self.im_color[self.outside_mask, :], (-1, 3))
 
-        dist_in = fit_in.inertia_
-        dist_out = fit_out.inertia_
+        self.cluster_center_in = np.average(self.cluster_in, axis = 0)
+        self.cluster_center_out = np.average(self.cluster_out, axis = 0)
 
-        self.cluster_prob = dist_in / (dist_in + dist_out)
 
         return 
     
-    
+
 
     

@@ -4,35 +4,42 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import snake as snek
 import AiA
 import cv2
 from sklearn.cluster import KMeans
 from PIL import Image
 
 
-fisk = plt.imread("probabilistic_data/simple_test.png") #RGB
+im= plt.imread("probabilistic_data/108073.jpg") #RGB
+
+snake = snek.snake(150, im, tau = 10, alpha = 0.1, beta = 0.1)
+# print(snake.cluster_center_in)
+# print(snake.cluster_center_out)
+
+snake.converge_to_shape(ax=None, conv_lim_pix=0.01, show_normals=True)
 
 
-print("hej")
+plt.show()
 
-def clustering(image_path, num_clusters):
-    image = plt.imread(image_path)
-    # red  = image[:,:,0]
-    # green = image[:,:,1]
-    # blue  = image[:,:,2]
-    Z = np.reshape(image, (-1, 3))
+
+# def clustering(image_path, num_clusters):
+#     image = plt.imread(image_path)
+#     # red  = image[:,:,0]
+#     # green = image[:,:,1]
+#     # blue  = image[:,:,2]
+#     Z = np.reshape(image, (-1, 3))
     
-    name = "K-means"
-    # define criteria and apply kmeans()
-    model = KMeans(n_clusters=num_clusters).fit(Z)
-    label = model.labels_
-    # center = kmeans.cluster_centers_
+#     name = "K-means"
+#     # define criteria and apply kmeans()
+#     model = KMeans(n_clusters=num_clusters).fit(Z)
+#     label = model.labels_
+#     # center = kmeans.cluster_centers_
        
-    # criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-    # ret,label,center=cv.kmeans(Z,num_clusters,None,criteria,10,cv.KMEANS_RANDOM_CENTERS)
+#     # criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+#     # ret,label,center=cv.kmeans(Z,num_clusters,None,criteria,10,cv.KMEANS_RANDOM_CENTERS)
 
-    return model, label, Z
+#     return model, label, Z
 
 
 def plot_clustering_2D(image_path, num_clusters):
