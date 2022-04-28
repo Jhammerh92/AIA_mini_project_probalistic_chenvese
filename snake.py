@@ -12,7 +12,8 @@ from sklearn.neighbors import NearestNeighbors
 
 class snake:
 
-    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None, weights = [1/3, 1/3, 1/3], method = "means"):   
+    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05,
+                 r=None, weights = [1/3, 1/3, 1/3], method = "means", var_tau=False, patch_size=11):   
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
@@ -21,10 +22,14 @@ class snake:
         self.patch_values = np.zeros((n_points,1)) 
         self.im = im
 
+        self.variable_tau = var_tau
+
         
         if (im.ndim == 3):
             self.im_color = im
-            self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY) * 255
+            self.im = np.invert(cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY)) * 255
+            # plt.figure()
+            # plt.imshow(self.im,cmap="gray")
             self.im_values_color = np.zeros((n_points,3))
         else:
             self.im_color = None
@@ -52,7 +57,9 @@ class snake:
 
         self.init_snake_to_image(r=r)
 
-        self.init_patch_dict(patch_size=11)
+        self.init_patch_dict(patch_size=patch_size)
+        self.init_im_dict()
+        self.init_knn_fitter()
 
         self.update_snake(False)
         
@@ -126,14 +133,14 @@ class snake:
         # plt.scatter(XX, YY, color='r')
         self.dict = []
         self.dict_ravel = []
+        # plt.figure()
         for i in range(len(self.XX)):
             patch = self.im[self.YY[i]-self.delta: self.YY[i]+self.delta+1, self.XX[i]-self.delta: self.XX[i]+self.delta+1 ]
+            # plt.imshow(patch, cmap="gray")
             self.dict.append(patch.astype(np.float64))
             self.dict_ravel.append(patch.astype(np.float64).ravel())
 
 
-        self.init_im_dict()
-        self.init_knn_fitter()
 
 
     def init_im_dict(self):
@@ -187,7 +194,7 @@ class snake:
 
     
     def init_knn_fitter(self):
-        self.knn_fitter = NearestNeighbors(n_neighbors=1, radius=self.patch_size * 255.0) # kan måske laves i init
+        self.knn_fitter = NearestNeighbors(n_neighbors=1, radius=self.patch_size * 255.0, p=1) # kan måske laves i init
         self.knn_fitter.fit(self.dict_ravel)
 
 
@@ -237,6 +244,7 @@ class snake:
                 patch_row = []
         fig, ax = plt.subplots(1,2)
         patch_work_array = np.concatenate(patch_work, axis = 0)
+
         ax[0].imshow(patch_work_array, cmap= "gray")
         ax[1].imshow(self.dict_assignment, cmap='nipy_spectral')
 
@@ -549,13 +557,13 @@ class snake:
 
 
 
-
-            change_factor = abs(abs(perc_diff) -1)
-            self.tau *= change_factor
-            self.tau = np.clip(self.tau, 1, 100)
-            print(abs(perc_diff))
-            print(change_factor)
-            print(self.tau)
+            if self.variable_tau is True:
+                change_factor = abs(abs(perc_diff) -1)
+                self.tau *= change_factor
+                self.tau = np.clip(self.tau, 1, 100)
+                print(abs(perc_diff))
+                print(change_factor)
+                print(self.tau)
             
             
             
@@ -692,6 +700,13 @@ class snake:
         ax.axhline(y = self.m_out, linestyle='--',color="gray",linewidth=0.5)
         ax.axhline(y = np.mean(self.im_values), linestyle='--',color="red",linewidth=0.5)
         ax.axhline(y = np.mean([self.m_in,self.m_out]), linestyle='-',color="gray")
+
+    def plot_prob_maps(self):
+        hist_prob_map = self.interp_prop(self.im)[0,:,:]
+        patch_prob_map = self.patch_interp_prop(self.im)[0,:,:]
+        fig, ax = plt.subplots(1,2)
+        ax[0].imshow(hist_prob_map,cmap="bwr")
+        ax[1].imshow(patch_prob_map,cmap="bwr")
 
 
 
