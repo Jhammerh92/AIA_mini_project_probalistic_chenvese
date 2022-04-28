@@ -24,13 +24,13 @@ class snake:
         
         if (im.ndim == 3):
             self.im_color = im
-            self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY)
+            self.im = cv2.cvtColor(self.im_color, cv2.COLOR_RGB2GRAY) * 255
             self.im_values_color = np.zeros((n_points,3))
         else:
             self.im_color = None
         self.im_raveled = self.im.ravel()
        
-        self.weights = weights
+        self.weights = np.array([weights])
 
         self.Y = im.shape[0]
         self.X = im.shape[1]
@@ -50,7 +50,7 @@ class snake:
         
         self.method = method
 
-        self.init_snake_to_image(r=100)
+        self.init_snake_to_image(r=r)
 
         self.init_patch_dict(patch_size=11)
 
@@ -399,25 +399,25 @@ class snake:
     def calc_norm_forces(self, method="means"):
         # using area means
         if method == "means":
-            self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out)
+            self.f_ext = (self.m_in - self.m_out)*(2*self.im_values - self.m_in - self.m_out).flatten()
         # using pixel probability
         elif method == "prob":
-            self.f_ext = self.interp_prop(self.im_values)
+            self.f_ext = self.interp_prop(self.im_values).flatten()
 
         elif method == "patch_prob":
             # = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
-            self.f_ext = self.patch_interp_prop(self.patch_values)
+            self.f_ext = self.patch_interp_prop(self.patch_values).flatten()
         elif method == "cluster_prob":
             
 
-            self.f_ext = -(self.prob_cluster - (1 - self.prob_cluster))
+            self.f_ext = -(self.prob_cluster - (1 - self.prob_cluster)).flatten()
         #print(self.f_ext)
         elif method == "unify" :
-            forces = np.array([self.interp_prop(self.im_values),
-                                    self.patch_interp_prop(self.patch_values),
-                                    -(self.prob_cluster - (1 - self.prob_cluster))])
+            forces = np.array([self.interp_prop(self.im_values).flatten(),
+                                    self.patch_interp_prop(self.patch_values).flatten(),
+                                    (-(self.prob_cluster - (1 - self.prob_cluster))).flatten()]).T
 
-            self.f_ext = np.sum(self.weights * forces, axis)
+            self.f_ext = np.sum(self.weights * forces, axis=1)
 
     
 
@@ -444,7 +444,7 @@ class snake:
         self.get_point_im_values()
         self.calc_normals()
         self.calc_im_mask()
-        # self.calc_area_means()
+        self.calc_area_means()
         self.calc_area_histograms()
         self.calc_patch_knn()
         self.clustering() 
@@ -551,7 +551,7 @@ class snake:
 
 
             change_factor = abs(abs(perc_diff) -1)
-            # self.tau *= change_factor
+            self.tau *= change_factor
             self.tau = np.clip(self.tau, 1, 100)
             print(abs(perc_diff))
             print(change_factor)
