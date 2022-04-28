@@ -12,7 +12,7 @@ from sklearn.neighbors import NearestNeighbors
 
 class snake:
 
-    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None, weights = [1/3, 1/3, 1/3]):   
+    def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05, r=None, weights = [1/3, 1/3, 1/3], method = "means"):   
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
@@ -48,6 +48,7 @@ class snake:
         self.init_interp_function()
         self.create_smoothing_matrix(alpha=alpha,beta=beta)
         
+        self.method = method
 
         self.init_snake_to_image(r=r)
 
@@ -444,7 +445,7 @@ class snake:
         self.calc_patch_knn()
         self.clustering() 
         # self.calc_norm_forces(method="prob")
-        self.calc_norm_forces(method="patch_prob") # forces skal adderes med weights
+        self.calc_norm_forces(method=self.method) # forces skal adderes med weights
         self.calc_snake_length()
         
 
