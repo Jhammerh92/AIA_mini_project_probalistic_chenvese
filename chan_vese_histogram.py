@@ -7,15 +7,16 @@ import cv2
 
 
 # im = plt.imread("probabilistic_data/william.jpg")
-im = plt.imread("probabilistic_data/color_test_01.png")
+# im = plt.imread("probabilistic_data/color_test_01.png")
 # im = AiA.imread("probabilistic_data/simple_test.png", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/randen15.png", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/test_C.png", as_type=True,load_type=np.uint8)
-# im = AiA.imread("probabilistic_data/12003.jpg")
+im = AiA.imread("probabilistic_data/12003.jpg")
 # im = AiA.imread("probabilistic_data/134052.jpg")
 # im = plt.imread("probabilistic_data/124084.jpg")
 # im = AiA.imread("probabilistic_data/Mindre_isbjorn.jpg", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/plante.jpg")
+# im = AiA.imread("probabilistic_data/flower_petal_01.jpg")
 # print(im)
 # im = im*255
 # AiA.imshow(im)
@@ -56,7 +57,7 @@ snake.plot_prob_maps()
 # # plt.show()
 
 
-snake.converge_to_shape(ax=None, show_normals=True, min_avg=40, min_iter=30, conv_lim_perc=1e-4)
+# snake.converge_to_shape(ax=None, show_normals=True, min_avg=40, min_iter=30, conv_lim_perc=1e-4)
 
 # # snake.plot_patch_dict()
 # snake.plot_patch_histograms()

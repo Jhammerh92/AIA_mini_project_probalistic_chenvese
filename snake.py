@@ -18,6 +18,8 @@ class snake:
         print("Initializing...")
         self.figsize = (12,7)
 
+        print(im.shape)
+
         self.n_points = n_points
         self.points = np.empty((n_points, 2))
         self.prev_points = np.empty((n_points, 2))
@@ -55,10 +57,10 @@ class snake:
 
         self.Y = im.shape[0]
         self.X = im.shape[1]
-        XX, YY = np.meshgrid(np.arange(self.X), np.arange(self.Y))
-        XX = XX.ravel()
-        YY = YY.ravel()
-        self.XXYY = np.c_[XX,YY]
+        # XX, YY = np.meshgrid(np.arange(self.X), np.arange(self.Y))
+        # XX = XX.ravel()
+        # YY = YY.ravel()
+        # self.XXYY = np.c_[XX,YY]
 
 
         self.f_ext= np.ones((n_points,1))
@@ -102,12 +104,18 @@ class snake:
         x = x/2 + shift[0]
         y = y/2 + shift[1]
         for i in range(self.n_points):
-            self.points[i,:] = [x+np.cos(angs[i])*r, y+np.sin(angs[i])*r]
+            self.points[i,:] = [x + np.cos(angs[i])*r, y + np.sin(angs[i])*r]
 
         self.constrain_to_im()
         self.calc_im_mask()
 
         # self.calc_normals()
+
+
+    def XY_to_ravel(self,x,y):
+        ravel_idx = ((self.Y) * np.floor(y) + np.floor(x)).astype(np.int64)
+
+        return ravel_idx
 
     def interp2d_to_points(self, f, x, y):
         # f is the 2d interp function
@@ -132,7 +140,7 @@ class snake:
     def init_interp_function(self):
         X = np.arange(0,self.X)
         Y = np.arange(0,self.Y)
-        self.interp_f = interpolate.interp2d(Y,X, self.im.T, kind="linear")
+        self.interp_f = interpolate.interp2d(X,Y, self.im, kind="linear")
         
         if not (self.im_color is None):
             self.interp_color_R = interpolate.interp2d(Y,X, self.im_color[:,:,0].T, kind="linear")
@@ -152,7 +160,7 @@ class snake:
         self.YY = YY.ravel()
         self.patch_coords = np.c_[self.XX, self.YY]
 
-        ravel_idx = ((self.Y) * np.floor(self.patch_coords[:,1]) + np.floor(self.patch_coords[:,0])).astype(np.int64)
+        ravel_idx = self.XY_to_ravel(self.XX, self.YY) # ((self.Y) * np.floor(self.patch_coords[:,1]) + np.floor(self.patch_coords[:,0])).astype(np.int64)
         init_patches = self.im_dict[ravel_idx]
 
         self.kmeans_patch_model = KMeans(init=init_patches,
@@ -381,8 +389,8 @@ class snake:
 
     def get_point_im_values(self):
         # vectorised
-        self.im_values = self.interp2d_to_points(self.interp_f, self.points[:,1], self.points[:,0])
-        ravel_idx = ((self.Y) * np.floor(self.points[:,1]) + np.floor(self.points[:,0])).astype(np.int64)
+        self.im_values = self.interp2d_to_points(self.interp_f, self.points[:,0], self.points[:,1])
+        ravel_idx =self.XY_to_ravel(self.points[:,0], self.points[:,1]) # ((self.Y) * np.floor(self.points[:,1]) + np.floor(self.points[:,0])).astype(np.int64)
         # print(self.XXYY[ravel_idx],  self.points, self.XXYY[ravel_idx]- self.points)
         self.patch_values = self.knn_fitter.kneighbors(np.array(self.im_dict[ravel_idx]), return_distance=False)
         if not np.all(self.im_color is None):
@@ -876,7 +884,7 @@ class snake:
         # histogram prob
         hist_prob_map = self.interp_prop(self.im)[0,:,:]
         # patch prob
-        patch_values = self.knn_fitter.kneighbors(np.array(self.im_dict), return_distance=False)
+        patch_values = self.knn_fitter.kneighbors(self.im_dict, return_distance=False)
         patch_prob_map = np.reshape(self.patch_interp_prop(patch_values)[0,:,:],self.im.shape)
         # max_patch_prob_map = np.reshape(self.max_patch_interp_prop(patch_values)[0,:,:],self.im.shape)
 
