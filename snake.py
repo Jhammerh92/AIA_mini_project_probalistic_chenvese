@@ -109,11 +109,12 @@ class snake:
         self.constrain_to_im()
         self.calc_im_mask()
 
+        self.init_points = self.points
         # self.calc_normals()
 
 
     def XY_to_ravel(self,x,y):
-        ravel_idx = ((self.Y) * np.floor(y) + np.floor(x)).astype(np.int64)
+        ravel_idx = ((self.X) * np.floor(y) + np.floor(x)).astype(np.int64)
 
         return ravel_idx
 
@@ -162,11 +163,11 @@ class snake:
 
         ravel_idx = self.XY_to_ravel(self.XX, self.YY) # ((self.Y) * np.floor(self.patch_coords[:,1]) + np.floor(self.patch_coords[:,0])).astype(np.int64)
         init_patches = self.im_dict[ravel_idx]
-
+        # init_patches = "random"
         self.kmeans_patch_model = KMeans(init=init_patches,
                                     n_clusters=self.n_dict**2,
                                     n_init=1,
-                                    max_iter=10,
+                                    max_iter=1,
                                     random_state=42)
 
         self.kmeans_patch_model.fit(self.im_dict) # im_dict is extracted patches for each pixel
@@ -639,7 +640,7 @@ class snake:
             self.constrain_to_im()
             
         
-    def converge_to_shape(self, ax=None, plot=True, conv_lim_perc=0.1, min_iter=50, max_iter = 200, min_avg = 25, show_normals=False):
+    def converge_to_shape(self, ax=None, plot=True, conv_lim_perc=0.01, min_iter=50, max_iter = 200, min_avg = 25, show_normals=False):
         def pop_push(arr, val):
             arr = np.roll(arr, -1)
             arr[-1] = val
@@ -745,7 +746,7 @@ class snake:
             self.plot_cluster_histograms()
 
             self.plot_prob_maps()
-            self.show() 
+            self.show(show_init=True) 
 
 
 
@@ -842,7 +843,7 @@ class snake:
 
 
     """ PLOTTING """
-    def show(self, ax=None, show_normals=False):
+    def show(self, ax=None, show_normals=False, show_init=False):
         if ax is None:
             fig, ax = plt.subplots(1, figsize=self.figsize)
         # ax.imshow(self.im,cmap="gray")
@@ -851,7 +852,11 @@ class snake:
         else:
             ax.imshow(self.im_color_plot)
         # ax.plot(self.points[:,0], self.points[:,1],'-', color="C2")
+        if show_init:
+            ax.plot(self.init_points[:,0], self.init_points[:,1],'-', color="b",linewidth=2.5)
+
         line = ax.plot(self.points[:,0], self.points[:,1],'-', color="g",linewidth=2.5)
+        
 
         normals = None
         if show_normals:
