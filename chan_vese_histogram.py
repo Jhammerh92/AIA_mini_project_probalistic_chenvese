@@ -15,12 +15,12 @@ import cv2
 # im = AiA.imread("probabilistic_data/105053.jpg")
 # im = plt.imread("probabilistic_data/108073.jpg")
 # im = plt.imread("probabilistic_data/124084.jpg")
-# im = AiA.imread("probabilistic_data/134052.jpg")
+im = AiA.imread("probabilistic_data/134052.jpg")
 # im = plt.imread("probabilistic_data/164074.jpg")
 # im = AiA.imread("probabilistic_data/Mindre_isbjorn.jpg", as_type=True,load_type=np.uint8)
-im = AiA.imread("probabilistic_data/isbjorn.jpg", as_type=True,load_type=np.uint8)
+# im = AiA.imread("probabilistic_data/isbjorn.jpg", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/plante.jpg")
-# im = AiA.imread("probabilistic_data/flower_petal_01.jpg")
+# im = AiA.imread("probabilistic_data/flower_petal_03.jpg")
 # print(im)
 
 # im = im*255
@@ -33,7 +33,7 @@ snake = snek.snake(150, im,
                    beta=0.01, 
                    method="unify", 
                    r=150,
-                   weights=[1,3,10], # these are reweighted to sum to 1
+                   weights=[1,10,10], # these are reweighted to sum to 1
                    patch_size=7,
                    n_dict=20,
                    n_clusters=5,
