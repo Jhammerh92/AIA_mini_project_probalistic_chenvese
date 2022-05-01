@@ -14,8 +14,8 @@ import cv2
 # im = AiA.imread("probabilistic_data/12003.jpg")
 # im = AiA.imread("probabilistic_data/105053.jpg")
 # im = plt.imread("probabilistic_data/108073.jpg")
-# im = plt.imread("probabilistic_data/124084.jpg")
-im = AiA.imread("probabilistic_data/134052.jpg")
+im = plt.imread("probabilistic_data/124084.jpg")
+# im = AiA.imread("probabilistic_data/134052.jpg")
 # im = plt.imread("probabilistic_data/164074.jpg")
 # im = AiA.imread("probabilistic_data/Mindre_isbjorn.jpg", as_type=True,load_type=np.uint8)
 # im = AiA.imread("probabilistic_data/isbjorn.jpg", as_type=True,load_type=np.uint8)
@@ -26,13 +26,13 @@ im = AiA.imread("probabilistic_data/134052.jpg")
 # im = im*255
 # AiA.imshow(im)
 
-snake = snek.snake(150, im,
-                   tau=3,
+snake = snek.snake(300, im,
+                   tau=1.5,
                    var_tau=False,
-                   alpha=0.01, 
-                   beta=0.01, 
+                   alpha=0.001, 
+                   beta=0.001, 
                    method="unify", 
-                   r=150,
+                   r=125,
                    weights=[1,10,10], # these are reweighted to sum to 1
                    patch_size=7,
                    n_dict=20,
@@ -61,7 +61,7 @@ snake.plot_prob_maps()
 # # plt.show()
 
 
-snake.converge_to_shape(ax=None, show_normals=True, min_avg=40, min_iter=30,max_iter=250, conv_lim_perc=1e-5)
+snake.converge_to_shape(ax=None, show_normals=True, min_avg=40, min_iter=30,max_iter=300, conv_lim_perc=1e-5)
 
 snake.show()
 
