@@ -855,7 +855,7 @@ class snake:
         if show_init:
             ax.plot(self.init_points[:,0], self.init_points[:,1],'-', color="b",linewidth=2.5)
 
-        line = ax.plot(self.points[:,0], self.points[:,1],'-', color="g",linewidth=2.5)
+        line = ax.plot(self.points[:,0], self.points[:,1],'-', color="m",linewidth=2.5)
         
 
         normals = None
