@@ -13,7 +13,7 @@ from sklearn.neighbors import NearestNeighbors
 class snake:
 
     def __init__(self, n_points, im, tau = 200, alpha=0.05, beta=0.05,
-                 r=None, weights = [1/3, 1/3, 1/3], method = "means", var_tau=False, patch_size=11, n_dict=10, n_clusters=5):   
+                 r=None, weights = [1/3, 1/3, 1/3], method = "means", var_tau=False, patch_size=11, n_dict=10, n_clusters=5,shift=[0,0]):   
 
         print("Initializing...")
         self.figsize = (12,7)
@@ -72,7 +72,7 @@ class snake:
         
         self.method = method
 
-        self.init_snake_to_image(r=r)
+        self.init_snake_to_image(r=r,shift=shift)
 
         self.init_im_dict(n_dict=n_dict, patch_size=patch_size)
         self.init_patch_dict()
@@ -83,13 +83,13 @@ class snake:
         print("Done!")
         
 
-    def init_snake(self):
-        angs = np.linspace(0,2*np.pi, self.n_points,endpoint=False)
-        for i in range(self.n_points):
-            self.points[i,:] = [1+np.cos(angs[i]), 1+np.sin(angs[i])]
+    # def init_snake(self):
+    #     angs = np.linspace(0,2*np.pi, self.n_points,endpoint=False)
+    #     for i in range(self.n_points):
+    #         self.points[i,:] = [1+np.cos(angs[i]), 1+np.sin(angs[i])]
 
-        self.calc_normals()
-        self.calc_im_mask()
+    #     self.calc_normals()
+    #     self.calc_im_mask()
     
     def init_snake_to_image(self,r=None, shift=[0,0]):
         y,x = self.im.shape # changes this to self.x ..
@@ -105,6 +105,8 @@ class snake:
             self.points[i,:] = [x+np.cos(angs[i])*r, y+np.sin(angs[i])*r]
 
         self.constrain_to_im()
+        self.calc_im_mask()
+
         # self.calc_normals()
 
     def interp2d_to_points(self, f, x, y):
@@ -397,9 +399,12 @@ class snake:
         return
 
     def calc_im_mask(self):
-        self.inside_mask = skimage.draw.polygon2mask(self.im.shape, self.points)
+        self.inside_mask = skimage.draw.polygon2mask(self.im.shape, np.fliplr(self.points))
         self.outside_mask =  ~self.inside_mask
 
+        # fig , ax = plt.subplots(1,2)
+        # ax[0].imshow(self.inside_mask)
+        # ax[1].imshow(self.outside_mask)
         # self.super_inside_mask = skimage.draw.polygon2mask(self.super_sample_dict_assignment.shape, self.points*self.patch_size)
         # self.super_outside_mask =  ~self.super_inside_mask
 
@@ -598,7 +603,7 @@ class snake:
     def update_snake(self, update=True, smoothing=True):
         self.get_point_im_values()
         self.calc_normals()
-        self.calc_im_mask()
+
         self.calc_area_means()
         self.calc_area_histograms()
         self.calc_patch_knn()
@@ -606,6 +611,7 @@ class snake:
         # self.clustering() 
         self.calc_norm_forces(method=self.method) # forces skal adderes med weights
         self.calc_snake_length()
+        self.calc_im_mask()
         
 
         if update: # apply forces
